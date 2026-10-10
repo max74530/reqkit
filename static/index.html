@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReqKit - 零用金與申購單管理系統</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* 全域字級：Tailwind 以 rem 為單位，調整 html 字級即可整體等比放大 */
+  html { font-size: 17px; }
+  body { font-family: 'Inter', sans-serif; }
+  .entry-bg { background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); }
+  .fade-in { animation: fadeIn .3s ease-in; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+  .hidden-view { display:none !important; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased min-h-screen flex flex-col">
+
+<!-- ═══════════ 畫面一：姓名進入 ═══════════ -->
+<div id="view-entry" class="entry-bg min-h-screen flex items-center justify-center px-4">
+  <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 text-white rounded-2xl mb-4">
+        <i class="fa-solid fa-wallet text-2xl"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-900">ReqKit</h1>
+      <p class="text-sm text-gray-500 mt-1">零用金與申購單管理系統</p>
+    </div>
+    <form id="form-entry" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">請輸入姓名</label>
+        <input type="text" id="in-name" required maxlength="40" autocomplete="off"
+               placeholder="例：姓名"
+               class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+        <p class="text-xs text-gray-500 mt-2">
+          <i class="fa-solid fa-circle-info text-indigo-400 mr-1"></i>
+          一般同仁直接輸入姓名即可進入；管理員需輸入密碼
+        </p>
+      </div>
+      <!-- 管理員密碼（選 admin 或點管理員時顯示）-->
+      <div id="entry-pw-wrap" class="hidden">
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          管理員密碼 <span id="entry-pw-for" class="text-xs text-gray-400 font-normal"></span>
+        </label>
+        <input type="password" id="entry-password" autocomplete="current-password" placeholder="請輸入管理員密碼"
+               class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+      </div>
+      <div id="entry-error" class="hidden text-sm text-rose-600 bg-rose-50 px-3 py-2 rounded-lg"></div>
+      <button type="submit" id="btn-entry"
+        class="w-full py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm">
+        <i class="fa-solid fa-right-to-bracket mr-2"></i>進入系統
+      </button>
+    </form>
+
+    <!-- 人員選擇（連動人員管理名單）-->
+    <div class="mt-6 pt-5 border-t border-gray-100">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs font-semibold text-gray-600">
+          <i class="fa-solid fa-users text-indigo-500 mr-1.5"></i>點選人員直接進入
+        </p>
+        <button type="button" onclick="loadEntryNames()" class="text-xs text-gray-400 hover:text-indigo-600 transition" title="重新載入">
+          <i class="fa-solid fa-rotate"></i> 重新整理
+        </button>
+      </div>
+      <div id="entry-people" class="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+        <p class="text-xs text-gray-400 text-center py-3"><i class="fa-solid fa-spinner fa-spin mr-1"></i>載入中...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 畫面二：主系統 ═══════════ -->
+<div id="view-app" class="hidden-view min-h-screen h-screen flex flex-col overflow-hidden">
+
+  <!-- Navbar -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-indigo-600 text-white p-2 rounded-xl shadow-md">
+          <i class="fa-solid fa-wallet text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-gray-900 leading-tight">ReqKit</h1>
+          <p class="text-xs text-gray-500">零用金與申購單管理系統</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <!-- 管理員專用 -->
+        <div id="admin-nav-btns" class="hidden-view flex items-center gap-2">
+          <button onclick="openBackupModal()"
+            class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 shadow-sm">
+            <i class="fa-solid fa-database mr-1.5 text-emerald-500"></i> 備份還原
+          </button>
+        </div>
+        <span id="whoami" class="hidden-view items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium"></span>
+        <button onclick="doLogout()"
+          class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 shadow-sm">
+          <i class="fa-solid fa-right-from-bracket mr-1.5 text-rose-500"></i> 切換身分
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 固定區：統計卡 / 月份列 / Tab（不隨內容捲動）-->
+  <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 flex-shrink-0">
+
+    <!-- 統計卡（僅管理員）-->
+    <div id="admin-stats" class="admin-only hidden-view grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">零用金 / 待審核</p>
+          <p class="stat-month text-[11px] text-gray-400 mt-0.5">—</p>
+          <h3 class="text-2xl font-bold text-gray-900 mt-1">
+            <span id="s-petty-count">0</span>
+            <span class="text-sm text-amber-600 font-semibold">(<span id="s-petty-pending">0</span>)</span>
+          </h3>
+        </div>
+        <div class="p-3 bg-blue-50 text-blue-600 rounded-xl"><i class="fa-solid fa-receipt text-xl"></i></div>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">申請零用金額</p>
+          <p class="stat-month text-[11px] text-gray-400 mt-0.5">—</p>
+          <h3 id="s-petty-amount" class="text-2xl font-bold text-indigo-600 mt-1">NT$ 0</h3>
+        </div>
+        <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl"><i class="fa-solid fa-sack-dollar text-xl"></i></div>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">申購單 / 待核准</p>
+          <p class="stat-month text-[11px] text-gray-400 mt-0.5">—</p>
+          <h3 class="text-2xl font-bold text-emerald-600 mt-1">
+            <span id="s-req-count">0</span>
+            <span class="text-sm text-amber-600 font-semibold">(<span id="s-req-pending">0</span>)</span>
+          </h3>
+        </div>
+        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><i class="fa-solid fa-cart-shopping text-xl"></i></div>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">採購單金額</p>
+          <p class="stat-month text-[11px] text-gray-400 mt-0.5">—</p>
+          <h3 id="s-req-amount" class="text-2xl font-bold text-emerald-600 mt-1">NT$ 0</h3>
+        </div>
+        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><i class="fa-solid fa-file-invoice-dollar text-xl"></i></div>
+      </div>
+    </div>
+
+    <!-- 月份切換（僅管理員）-->
+    <div id="month-bar" class="admin-only hidden-view mb-5 bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 flex flex-wrap items-center gap-3">
+      <span class="text-sm font-medium text-gray-600"><i class="fa-solid fa-calendar-days text-indigo-500 mr-1.5"></i>檢視月份</span>
+      <button onclick="shiftMonth(-1)" class="px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-100"><i class="fa-solid fa-chevron-left"></i></button>
+      <span id="month-label" class="px-3 py-1.5 bg-indigo-50 text-indigo-700 font-semibold rounded-lg text-sm border border-indigo-200 min-w-[92px] text-center">—</span>
+      <button onclick="shiftMonth(1)" class="px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-100"><i class="fa-solid fa-chevron-right"></i></button>
+      <button onclick="goCurrentMonth()" class="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-100">回到本月</button>
+      <label class="flex items-center gap-2 text-xs text-gray-600 ml-auto">
+        <i class="fa-solid fa-box-archive text-purple-500"></i>歷史年度
+        <select id="year-select" onchange="switchYear(this.value)"
+                class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white focus:ring-1 focus:ring-indigo-500">
+          <option value="">（即時資料）</option>
+        </select>
+        <button onclick="loadArchiveYears()" class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs hover:bg-gray-100" title="重新載入年度清單">
+          <i class="fa-solid fa-rotate"></i>
+        </button>
+      </label>
+    </div>
+
+    <!-- 年度明細檔提示 -->
+    <div id="archive-banner" class="hidden-view mb-4 bg-purple-50 border border-purple-200 text-purple-800 px-4 py-3 rounded-xl text-sm flex items-center justify-between gap-3">
+      <span><i class="fa-solid fa-box-archive mr-2"></i>正在檢視 <b id="archive-banner-year"></b> 年度明細檔（歷史唯讀資料）</span>
+      <button onclick="switchYear('')" class="px-3 py-1 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 whitespace-nowrap">
+        返回即時資料
+      </button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-gray-200 mb-5">
+      <nav class="-mb-px flex space-x-6 overflow-x-auto">
+        <button onclick="switchTab('petty')" id="tab-btn-petty" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-indigo-600 text-indigo-600 flex items-center gap-2">
+          <i class="fa-solid fa-file-invoice-dollar"></i><span>零用金申請端</span>
+        </button>
+        <button onclick="switchTab('req')" id="tab-btn-req" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 flex items-center gap-2">
+          <i class="fa-solid fa-boxes-stacked"></i><span>申購單申請</span>
+        </button>
+        <button onclick="switchTab('accounting')" id="tab-btn-accounting" class="tab-btn admin-only whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 flex items-center gap-2">
+          <i class="fa-solid fa-calculator"></i><span>會計端審核</span>
+        </button>
+        <button onclick="switchTab('stats')" id="tab-btn-stats" class="tab-btn admin-only whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 flex items-center gap-2">
+          <i class="fa-solid fa-chart-column"></i><span>統計分析</span>
+        </button>
+        <button onclick="switchTab('people')" id="tab-btn-people" class="tab-btn admin-only whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 flex items-center gap-2">
+          <i class="fa-solid fa-users-gear"></i><span>人員管理</span>
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- 捲動區：捲軸位於 Tab 之下，只有分頁內容會捲動 -->
+  <main id="app-scroll" class="flex-grow w-full overflow-y-auto">
+   <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
+
+    <!-- Tab: 零用金申請端 -->
+    <section id="tab-petty" class="tab-pane">
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
+          <div>
+            <h2 class="text-lg font-bold text-gray-900">零用金申請</h2>
+            <p class="text-sm text-gray-500" id="petty-scope-hint"></p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="openCategoryModal()" class="admin-only inline-flex items-center px-3.5 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm">
+              <i class="fa-solid fa-tags mr-2 text-indigo-500"></i> 管理申請項目
+            </button>
+            <button onclick="doExport('petty')" class="admin-only inline-flex items-center px-3.5 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm">
+              <i class="fa-solid fa-file-excel mr-2 text-emerald-600"></i> 匯出報表
+            </button>
+            <button onclick="openPettyModal()" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-lg text-sm font-medium text-white hover:bg-indigo-700 shadow-sm">
+              <i class="fa-solid fa-plus mr-2"></i> 新增零用金申請
+            </button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400"><i class="fa-solid fa-search"></i></span>
+            <input type="text" id="petty-search" oninput="renderPetty()"
+                   placeholder="搜尋請領人、活動內容、備註..." class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+          </div>
+          <select id="petty-status" onchange="renderPetty()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <option value="">全部狀態</option><option>待審核</option><option>已撥款</option><option>已退回</option>
+          </select>
+          <div id="petty-scope-badge" class="flex items-center justify-end"></div>
+        </div>
+        <div class="overflow-x-auto border border-gray-200 rounded-lg">
+          <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
+            <thead class="bg-gray-50 text-gray-600 font-semibold">
+              <tr>
+                <th class="px-4 py-3">申請日期</th><th class="px-4 py-3">請領人</th>
+                <th class="px-4 py-3">活動內容簡述</th><th class="px-4 py-3">申請項目</th>
+                <th class="px-4 py-3 text-right">總金額</th>
+                <th class="px-4 py-3 text-center admin-only">狀態</th>
+                <th class="px-4 py-3">備註</th><th class="px-4 py-3 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody id="petty-body" class="divide-y divide-gray-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab: 申購單 -->
+    <section id="tab-req" class="tab-pane hidden-view">
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
+          <div>
+            <h2 class="text-lg font-bold text-gray-900">申購單申請</h2>
+            <p class="text-sm text-gray-500" id="req-scope-hint"></p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="doExport('req')" class="admin-only inline-flex items-center px-3.5 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm">
+              <i class="fa-solid fa-file-excel mr-2 text-emerald-600"></i> 匯出申購表
+            </button>
+            <button onclick="openReqModal()" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-lg text-sm font-medium text-white hover:bg-indigo-700 shadow-sm">
+              <i class="fa-solid fa-plus mr-2"></i> 新增申購單
+            </button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div class="relative sm:col-span-2">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400"><i class="fa-solid fa-search"></i></span>
+            <input type="text" id="req-search" oninput="renderReq()" placeholder="搜尋申購人、品項、備註..."
+                   class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+          </div>
+          <div id="req-scope-badge" class="flex items-center justify-end"></div>
+        </div>
+        <div class="overflow-x-auto border border-gray-200 rounded-lg">
+          <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
+            <thead class="bg-gray-50 text-gray-600 font-semibold">
+              <tr>
+                <th class="px-4 py-3">日期</th><th class="px-4 py-3">申購人</th><th class="px-4 py-3">申購項目</th>
+                <th class="px-4 py-3 text-center">數量</th><th class="px-4 py-3 text-right">總金額</th>
+                <th class="px-4 py-3 text-center bg-indigo-50/50 text-indigo-900">通過訂購<br><span class="text-xs font-normal">(王嫺梓)</span></th>
+                <th class="px-4 py-3 text-center bg-emerald-50/50 text-emerald-900">已訂購<br><span class="text-xs font-normal">(採購者)</span></th>
+                <th class="px-4 py-3">完成日期</th><th class="px-4 py-3">備註</th>
+                <th class="px-4 py-3 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody id="req-body" class="divide-y divide-gray-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab: 會計端審核 -->
+    <section id="tab-accounting" class="tab-pane admin-only hidden-view">
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
+          <div>
+            <h2 class="text-lg font-bold text-gray-900">會計端審核與支付管理</h2>
+            <p class="text-sm text-gray-500">記錄發票取得日期、確認金額、支付日期與支付方式。</p>
+          </div>
+          <button onclick="doExport('accounting')" class="inline-flex items-center px-3.5 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm">
+            <i class="fa-solid fa-file-excel mr-2 text-emerald-600"></i> 匯出會計報表
+          </button>
+        </div>
+        <div class="overflow-x-auto border border-gray-200 rounded-lg">
+          <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
+            <thead class="bg-gray-50 text-gray-600 font-semibold">
+              <tr>
+                <th class="px-4 py-3">申請日期/請領人</th><th class="px-4 py-3">活動與項目</th>
+                <th class="px-4 py-3">申請金額</th><th class="px-4 py-3">發票取得日期</th>
+                <th class="px-4 py-3">金額確認 (NT$)</th><th class="px-4 py-3">支付日期</th>
+                <th class="px-4 py-3">支付方式</th>
+                <th class="px-4 py-3 text-center">狀態<br><span class="text-[11px] font-normal text-emerald-600">改變即自動儲存</span></th>
+                <th class="px-4 py-3 text-center">儲存<br><span class="text-[11px] font-normal text-gray-400">儲存其餘欄位</span></th>
+              </tr>
+            </thead>
+            <tbody id="acc-body" class="divide-y divide-gray-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab: 統計分析 -->
+    <section id="tab-stats" class="tab-pane admin-only hidden-view space-y-5">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <h3 class="font-bold text-gray-900 mb-1"><i class="fa-solid fa-tags text-indigo-500 mr-2"></i>每月申請項目統計</h3>
+          <p class="text-xs text-gray-500 mb-3" id="stat-cat-month">—</p>
+          <div id="chart-category" class="space-y-2"></div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div class="flex items-center justify-between mb-1">
+            <h3 class="font-bold text-gray-900"><i class="fa-solid fa-user-group text-emerald-500 mr-2"></i>每個人申請統計</h3>
+            <select id="person-kind" onchange="loadPersonStats()" class="px-2 py-1 border border-gray-300 rounded-lg text-xs bg-white">
+              <option value="petty">零用金</option><option value="req">申購單</option>
+            </select>
+          </div>
+          <p class="text-xs text-gray-500 mb-3" id="stat-person-month">—</p>
+          <div id="chart-person" class="space-y-2"></div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <h3 class="font-bold text-gray-900 mb-1"><i class="fa-solid fa-chart-line text-blue-500 mr-2"></i>近 12 個月零用金趨勢</h3>
+        <p class="text-xs text-gray-500 mb-4">依申請月份彙總，不受上方月份篩選影響</p>
+        <div id="chart-trend" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- Tab: 人員管理 -->
+    <section id="tab-people" class="tab-pane admin-only hidden-view space-y-5">
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <h3 class="font-bold text-gray-900 mb-1"><i class="fa-solid fa-user-plus text-indigo-500 mr-2"></i>新增人員</h3>
+        <p class="text-xs text-gray-500 mb-4">姓名即為進入系統時的識別碼。停用後其歷史單據仍會保留。</p>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-semibold text-gray-700 mb-1">姓名 *</label>
+            <input type="text" id="p-name" maxlength="40" placeholder="例：主管姓名"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">角色</label>
+            <select id="p-role" onchange="document.getElementById('p-pw-wrap').classList.toggle('hidden', this.value!=='admin')"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+              <option value="user">user 一般使用者</option>
+              <option value="admin">admin 管理員</option>
+            </select>
+          </div>
+          <div id="p-pw-wrap" class="hidden">
+            <label class="block text-xs font-semibold text-gray-700 mb-1">管理員密碼</label>
+            <input type="password" id="p-pw" placeholder="至少 4 碼（留空稍後設定）"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+          </div>
+          <div>
+            <button onclick="createPerson()" class="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+              <i class="fa-solid fa-plus mr-1.5"></i>新增
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-bold text-gray-900"><i class="fa-solid fa-users text-indigo-500 mr-2"></i>人員名冊</h3>
+          <div class="flex items-center gap-3">
+            <span id="people-count" class="text-xs text-gray-500"></span>
+            <button onclick="changeMyPw()" class="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-100">
+              <i class="fa-solid fa-key mr-1.5 text-purple-500"></i>修改我的密碼
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto border border-gray-200 rounded-lg">
+          <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
+            <thead class="bg-gray-50 text-gray-600 font-semibold">
+              <tr>
+                <th class="px-4 py-3">姓名</th><th class="px-4 py-3 text-center">角色</th>
+                <th class="px-4 py-3 text-right">零用金</th><th class="px-4 py-3 text-right">申購單</th>
+                <th class="px-4 py-3">最後登入</th><th class="px-4 py-3 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody id="people-body" class="divide-y divide-gray-200"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <h3 class="font-bold text-gray-900 mb-4"><i class="fa-solid fa-clock-rotate-left text-gray-500 mr-2"></i>管理操作記錄</h3>
+        <div class="max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
+          <table class="min-w-full divide-y divide-gray-200 text-left text-xs">
+            <thead class="bg-gray-50 text-gray-600 font-semibold sticky top-0">
+              <tr><th class="px-3 py-2">時間</th><th class="px-3 py-2">操作者</th><th class="px-3 py-2">動作</th><th class="px-3 py-2">對象</th><th class="px-3 py-2">說明</th></tr>
+            </thead>
+            <tbody id="log-body" class="divide-y divide-gray-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+   </div>
+  </main>
+</div>
+
+<!-- ═══════════ Modals ═══════════ -->
+<div id="m-petty" class="fixed inset-0 z-50 hidden-view items-center justify-center bg-black/50 px-4 overflow-y-auto py-8">
+  <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+    <div class="flex justify-between items-center pb-3 border-b mb-4">
+      <h3 id="petty-modal-title" class="text-lg font-bold text-gray-900">新增零用金申請</h3>
+      <button onclick="closeModal('m-petty')" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+    <form id="form-petty" onsubmit="savePetty(event)" class="space-y-4">
+      <input type="hidden" id="p-id">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">申請日期 *</label>
+          <input type="date" id="p-date" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">請領人 *</label>
+          <input type="text" id="p-applicant" readonly
+                 class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600">
+          <p class="text-[11px] text-gray-400 mt-1">自動帶入登入姓名</p>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-700 mb-1">活動內容簡述 *</label>
+        <input type="text" id="p-activity" required maxlength="200" placeholder="例：拜訪客戶交通與餐費支出"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-700 mb-1">申請項目（可複選）*</label>
+        <div id="p-cats" class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-gray-50 p-3 rounded-lg border border-gray-200"></div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">總金額 (NT$) *</label>
+          <input type="number" id="p-amount" min="0" step="1" required placeholder="0"
+                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">備註</label>
+          <input type="text" id="p-remark" maxlength="200" placeholder="補充說明..."
+                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+        </div>
+      </div>
+      <div class="flex justify-end space-x-3 pt-4 border-t">
+        <button type="button" onclick="closeModal('m-petty')" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">取消</button>
+        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">儲存申請</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="m-req" class="fixed inset-0 z-50 hidden-view items-center justify-center bg-black/50 px-4 overflow-y-auto py-8">
+  <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+    <div class="flex justify-between items-center pb-3 border-b mb-4">
+      <h3 id="req-modal-title" class="text-lg font-bold text-gray-900">新增申購單</h3>
+      <button onclick="closeModal('m-req')" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+    <form id="form-req" onsubmit="saveReq(event)" class="space-y-4">
+      <input type="hidden" id="r-id">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">日期 *</label>
+          <input type="date" id="r-date" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">申購人 *</label>
+          <input type="text" id="r-requester" readonly
+                 class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-700 mb-1">申購項目 *</label>
+        <input type="text" id="r-item" required maxlength="200" placeholder="例：印表機碳粉匣 / 辦公椅"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">數量 *</label>
+          <input type="number" id="r-qty" min="1" step="1" value="1" required
+                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">總金額 (NT$) *</label>
+          <input type="number" id="r-total" min="0" step="1" required placeholder="0"
+                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-700 mb-1">其他備註</label>
+        <input type="text" id="r-other" maxlength="200" placeholder="備註說明..."
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+      </div>
+      <div class="flex justify-end space-x-3 pt-4 border-t">
+        <button type="button" onclick="closeModal('m-req')" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">取消</button>
+        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">儲存申購單</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="m-cat" class="fixed inset-0 z-50 hidden-view items-center justify-center bg-black/50 px-4">
+  <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+    <div class="flex justify-between items-center pb-3 border-b mb-4">
+      <h3 class="text-lg font-bold text-gray-900">管理申請項目</h3>
+      <button onclick="closeModal('m-cat')" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+    <div class="flex gap-2 mb-4">
+      <input type="text" id="new-cat" maxlength="30" placeholder="輸入新的申請項目名稱..."
+             class="flex-grow px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+             onkeydown="if(event.key==='Enter'){addCategory()}">
+      <button onclick="addCategory()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">新增</button>
+    </div>
+    <div class="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-2" id="cat-list"></div>
+    <div class="flex justify-end pt-4 mt-4 border-t">
+      <button onclick="closeModal('m-cat')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">完成</button>
+    </div>
+  </div>
+</div>
+
+<div id="m-backup" class="fixed inset-0 z-50 hidden-view items-center justify-center bg-black/50 px-4">
+  <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-center pb-3 border-b mb-4">
+      <h3 class="text-lg font-bold text-gray-900">備份、年度封存與還原</h3>
+      <button onclick="closeModal('m-backup')" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+
+    <div class="space-y-5">
+      <!-- 立即備份 -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button onclick="doBackupNow()" class="inline-flex justify-center items-center px-4 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">
+          <i class="fa-solid fa-download mr-2"></i>立即備份
+        </button>
+        <button onclick="doAutoNow()" class="inline-flex justify-center items-center px-4 py-2.5 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700">
+          <i class="fa-solid fa-box-archive mr-2"></i>執行月底作業
+        </button>
+      </div>
+      <p class="text-xs text-gray-500 -mt-3">
+        <i class="fa-solid fa-clock text-indigo-400 mr-1"></i>
+        系統已設定<b>每月最後一天凌晨 2:00 自動備份並封存當年度明細</b>，此處可手動立即執行。
+      </p>
+
+      <!-- 年度封存 -->
+      <div class="border-t border-gray-100 pt-4">
+        <h4 class="text-sm font-bold text-gray-800 mb-1"><i class="fa-solid fa-box-archive text-purple-500 mr-2"></i>年度明細檔</h4>
+        <p class="text-xs text-gray-500 mb-3">封存後可在月份列的「歷史年度」下拉選單查詢該年度資料（唯讀）。重複封存會覆寫該年度檔。</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">要封存的年度</label>
+            <input type="number" id="archive-year-input" min="2000" max="2999"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                   placeholder="例：2026">
+          </div>
+          <button onclick="doArchive()" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">
+            <i class="fa-solid fa-box-archive mr-1.5"></i>封存該年度
+          </button>
+        </div>
+        <div id="archive-list" class="mt-3 space-y-1.5"></div>
+      </div>
+
+      <!-- 備份紀錄 -->
+      <div class="border-t border-gray-100 pt-4">
+        <h4 class="text-sm font-bold text-gray-800 mb-2"><i class="fa-solid fa-clock-rotate-left text-gray-500 mr-2"></i>最近紀錄</h4>
+        <div id="backup-log" class="max-h-40 overflow-y-auto border border-gray-200 rounded-lg text-xs"></div>
+      </div>
+
+      <!-- 檔案 -->
+      <div class="border-t border-gray-100 pt-4">
+        <h4 class="text-sm font-bold text-gray-800 mb-2"><i class="fa-solid fa-folder-open text-amber-500 mr-2"></i>伺服器備份檔案</h4>
+        <div id="backup-files" class="max-h-32 overflow-y-auto border border-gray-200 rounded-lg text-xs"></div>
+        <p class="text-[11px] text-gray-400 mt-1">檔案存放於 <code>資料夾/archive/</code>（保留最近 24 份）</p>
+      </div>
+
+      <!-- 還原 -->
+      <div class="border-t border-gray-100 pt-4">
+        <h4 class="text-sm font-bold text-gray-800 mb-2 text-rose-700"><i class="fa-solid fa-upload text-rose-500 mr-2"></i>資料還原</h4>
+        <textarea id="import-json" rows="3" placeholder="貼上備份 JSON 內容..."
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+        <button onclick="importBackup()" class="mt-2 w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg font-medium hover:bg-gray-50">
+          <i class="fa-solid fa-upload mr-2 text-indigo-500"></i> 確認還原
+        </button>
+        <p class="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg mt-3">
+          <i class="fa-solid fa-triangle-exclamation mr-1"></i>還原會覆蓋現有全部資料，請先下載備份。
+        </p>
+      </div>
+    </div>
+
+    <div class="flex justify-end pt-4 mt-4 border-t">
+      <button onclick="closeModal('m-backup')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">關閉</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════ 狀態 ═══════════ */
+const S = {
+  token: localStorage.getItem('reqkit_token'),
+  me: null, isAdmin: false,
+  cats: [], petty: [], reqs: [], people: [],
+  payMethods: ['現金', '銀行轉帳'],
+  year: '', archiveYears: [], entryNames: [],
+  month: new Date().toISOString().slice(0,7),
+  allMonths: false,
+  tab: 'petty',
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => 'NT$ ' + Number(n||0).toLocaleString();
+
+/* ═══════════ API ═══════════ */
+/* opts.soft401 = true 時不做「強制登出」處理，直接回傳伺服器錯誤訊息（登入用）*/
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers||{}) };
+  if (S.token) headers['Authorization'] = 'Bearer ' + S.token;
+  const res = await fetch('/api' + path, { ...opts, headers });
+  if (res.status === 401 && !opts.soft401) { forceEntry(); throw new Error('請重新進入系統'); }
+  if (res.status === 403) { const d = await res.json().catch(()=>({})); throw new Error(d.error || '權限不足'); }
+  const ct = res.headers.get('content-type')||'';
+  if (!ct.includes('application/json')) { if(!res.ok) throw new Error('請求失敗'); return res; }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || '請求失敗');
+  return data;
+}
+
+/* ═══════════ 進入 / 離開 ═══════════ */
+function forceEntry(){ S.token=null; S.me=null; S.isAdmin=false; localStorage.removeItem('reqkit_token'); showEntry(); }
+function showEntry(){
+  $('view-app').classList.add('hidden-view');
+  $('view-entry').classList.remove('hidden-view');
+  loadEntryNames();
+}
+
+/* 進入畫面：載入人員名單（連動人員管理）── */
+async function loadEntryNames(){
+  const box = $('entry-people');
+  box.innerHTML = '<p class="text-xs text-gray-400 text-center py-3"><i class="fa-solid fa-spinner fa-spin mr-1"></i>載入中...</p>';
+  try{
+    const rows = await api('/entry-names');
+    S.entryNames = rows;
+    if (!rows.length){
+      box.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">尚無人員，請上方輸入姓名建立</p>';
+      return;
+    }
+    box.innerHTML = rows.map(p => {
+      const isAdmin = p.role === 'admin';
+      const badge = isAdmin
+        ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">管理員</span>'
+        : '';
+      const time = p.last_login_at
+        ? `<span class="text-[11px] text-gray-400">${esc(p.last_login_at)}</span>`
+        : '<span class="text-[11px] text-gray-300">尚未登入</span>';
+      const lock = isAdmin ? ' <i class="fa-solid fa-lock text-purple-400 text-xs"></i>' : '';
+      const uname = esc(p.username).replace(/'/g, "\\'").replace(/"/g,'&quot;');
+      return `<button type="button" onclick="enterAs('${uname}', ${isAdmin})"
+          class="w-full flex items-center justify-between px-3 py-2 border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 transition text-left">
+        <span class="flex items-center gap-2 min-w-0">
+          <span class="w-7 h-7 rounded-full ${isAdmin?'bg-purple-100 text-purple-700':'bg-indigo-100 text-indigo-700'} flex items-center justify-center text-xs font-semibold shrink-0">${esc(p.display_name.slice(0,1))}</span>
+          <span class="font-medium text-gray-800 text-sm truncate">${esc(p.display_name)}</span>
+          ${badge}${lock}
+        </span>
+        ${time}
+      </button>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML = `<p class="text-xs text-rose-500 text-center py-3">${esc(e.message)}</p>`;
+  }
+}
+
+/* 切換密碼欄位顯示 */
+function togglePwField(show, who){
+  const w = $('entry-pw-wrap');
+  if(show){ w.classList.remove('hidden'); $('entry-pw-for').textContent = who ? '（'+who+'）' : ''; }
+  else { w.classList.add('hidden'); $('entry-password').value=''; }
+}
+function isAdminName(name){
+  const hit = (S.entryNames||[]).find(x => x.username === name);
+  return hit ? hit.role === 'admin' : false;
+}
+
+/* 點選人員直接進入（管理員先要密碼）*/
+async function enterAs(name, isAdminFlag){
+  // 把選取的人員帶入輸入框，否則按「進入系統」時姓名會是空的
+  $('in-name').value = name;
+  const needPw = (isAdminFlag !== undefined) ? isAdminFlag : isAdminName(name);
+  if(needPw){
+    togglePwField(true, name);
+    $('entry-password').focus();
+    return;
+  }
+  await doEnter(name, '');
+}
+
+/* 實際登入 */
+async function doEnter(name, password){
+  const btn = $('btn-entry');
+  const err = $('entry-error');
+  err.classList.add('hidden');
+  btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>進入中...';
+  try{
+    const payload = { name };
+    if(password) payload.password = password;
+    const d = await api('/session', { method:'POST', body: JSON.stringify(payload), soft401:true });
+    S.token = d.token; S.me = d.user; S.isAdmin = d.user.role === 'admin';
+    localStorage.setItem('reqkit_token', S.token);
+    try { const m = await api('/me'); if (m.payment_methods) S.payMethods = m.payment_methods; } catch(e){}
+    $('in-name').value = '';
+    togglePwField(false);
+    await enterApp();
+  }catch(ex){
+    err.textContent = ex.message; err.classList.remove('hidden');
+    // 管理員密碼錯誤 → 停留在密碼欄位
+    if(/密碼/.test(ex.message)){ togglePwField(true, name); $('entry-password').focus(); $('entry-password').select(); }
+  }finally{
+    btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-right-to-bracket mr-2"></i>進入系統';
+  }
+}
+function showApp(){ $('view-entry').classList.add('hidden-view'); $('view-app').classList.remove('hidden-view'); }
+
+$('form-entry').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = $('in-name').value.trim();
+  if(!name){ toast('請輸入姓名','error'); return; }
+  const pw = $('entry-password').value;
+  await doEnter(name, pw);
+});
+$('in-name').addEventListener('input', () => {
+  const n = $('in-name').value.trim();
+  if(isAdminName(n)) togglePwField(true, n);
+  else togglePwField(false);
+});
+
+async function doLogout(){
+  try { await api('/logout', { method:'POST' }); } catch(e){}
+  forceEntry(); $('in-name').value='';
+}
+
+async function enterApp(){
+  showApp();
+  applyRoleUI();
+  await loadAll();
+  if (S.isAdmin) await loadArchiveYears();
+  switchTab(S.isAdmin ? 'petty' : 'petty');
+}
+
+function applyRoleUI(){
+  document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden-view', !S.isAdmin));
+  const w = $('whoami');
+  if (S.isAdmin) {
+    w.className = 'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium bg-purple-50 text-purple-700 border-purple-200';
+    w.innerHTML = '<i class="fa-solid fa-user-shield"></i>' + esc(S.me.display_name) + ' · 管理員';
+    $('admin-nav-btns').classList.remove('hidden-view'); $('admin-nav-btns').classList.add('flex');
+  } else {
+    w.className = 'hidden-view';
+    w.innerHTML='';
+    $('admin-nav-btns').classList.add('hidden-view'); $('admin-nav-btns').classList.remove('flex');
+  }
+  const hint = S.isAdmin
+    ? '檢視所選月份之全公司申請明細。'
+    : '檢視您個人所有申請單（不含月份篩選）。';
+  $('petty-scope-hint').textContent = hint;
+  $('req-scope-hint').textContent = hint;
+}
+
+/* ═══════════ 載入 ═══════════ */
+function monthQuery(){
+  if (!S.isAdmin) return '';
+  if (S.year) return '?year=' + S.year;
+  return S.allMonths ? '' : ('?month=' + S.month);
+}
+
+async function loadAll(){
+  try {
+    const q = monthQuery();
+    const [cats, petty, reqs] = await Promise.all([
+      api('/categories'), api('/petty'+q), api('/requisitions'+q),
+    ]);
+    S.cats = cats; S.petty = petty; S.reqs = reqs;
+    if (S.isAdmin) { await Promise.all([loadOverview(), loadAdminLog()]); }
+    renderAll();
+  } catch(ex){ toast(ex.message, 'error'); }
+}
+
+async function loadOverview(){
+  const q = S.year ? '?year=' + S.year : (S.allMonths ? '' : '?month=' + S.month);
+  try {
+    const d = await api('/stats/overview'+q);
+    $('s-petty-count').textContent = d.petty_count;
+    $('s-petty-amount').textContent = money(d.petty_amount);
+    $('s-petty-pending').textContent = d.petty_pending;
+    $('s-req-count').textContent = d.req_count;
+    $('s-req-pending').textContent = d.req_pending;
+    $('s-req-amount').textContent = money(d.req_amount);
+  } catch(e){}
+}
+
+/* ── 年度明細檔切換 ─────────────────────────────────── */
+async function loadArchiveYears(){
+  const sel = $('year-select');
+  if (!S.isAdmin) return;
+  try{
+    const rows = await api('/archive/years');
+    S.archiveYears = rows;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">（即時資料）</option>' +
+      rows.map(y => `<option value="${y.year}">${y.year} 年（零用金 ${y.petty_count} / 申購 ${y.req_count}）</option>`).join('');
+    sel.value = cur;
+  }catch(e){}
+}
+
+async function switchYear(year){
+  S.year = year || '';
+  $('year-select').value = S.year;
+  $('archive-banner').classList.toggle('hidden-view', !S.year);
+  if (S.year) $('archive-banner-year').textContent = S.year + ' 年';
+  // 年度模式下停用月份控制
+  const inArchive = !!S.year;
+  document.querySelectorAll('#month-bar > button').forEach(b => b.disabled = inArchive);
+  if (!inArchive) $('month-label').textContent = S.allMonths ? '全部月份' : S.month;
+  else $('month-label').textContent = S.year + ' 年度';
+  updateStatMonths();
+  await loadAll();
+  if (S.tab === 'stats') await loadStats();
+}
+
+async function loadAdminLog(){
+  try {
+    const rows = await api('/admin-log');
+    const tb = $('log-body');
+    tb.innerHTML = rows.length ? '' : '<tr><td colspan="5" class="px-3 py-6 text-center text-gray-400">尚無記錄</td></tr>';
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="px-3 py-2 text-gray-500 whitespace-nowrap">${esc(r.created_at)}</td>
+        <td class="px-3 py-2 font-medium">${esc(r.actor_name)}</td>
+        <td class="px-3 py-2">${esc(r.action)}</td>
+        <td class="px-3 py-2 text-gray-600">${esc(r.target||'-')}</td>
+        <td class="px-3 py-2 text-gray-400">${esc(r.detail||'')}</td>`;
+      tb.appendChild(tr);
+    });
+  } catch(e){}
+}
+
+function renderAll(){ renderPetty(); renderAccounting(); renderReq(); updateScopeBadges(); }
+
+/* ═══════════ 月份 ═══════════ */
+function shiftMonth(n){
+  const [y,m] = S.month.split('-').map(Number);
+  const d = new Date(y, m-1+n, 1);
+  S.month = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  onMonthChange();
+}
+function goCurrentMonth(){ S.month = new Date().toISOString().slice(0,7); onMonthChange(); }
+async function onMonthChange(){
+  $('month-label').textContent = S.allMonths ? '全部月份' : S.month;
+  updateStatMonths();
+  await loadAll();
+  if (S.tab==='stats') await loadStats();
+}
+/* 統計卡上的月份/年度標示（四張卡一致） */
+function updateStatMonths(){
+  const label = S.year ? S.year + ' 年度' : (S.allMonths ? '全部月份' : S.month);
+  document.querySelectorAll('.stat-month').forEach(el => el.textContent = label);
+}
+function updateScopeBadges(){
+  const badge = (el, text) => { el.innerHTML = `<span class="text-xs text-gray-500 px-3 py-1.5 rounded-lg bg-gray-100 border border-gray-200">${text}</span>`; };
+  if (S.isAdmin) {
+    badge($('petty-scope-badge'), S.allMonths ? '範圍：全部月份' : '範圍：' + S.month + '（' + S.petty.length + ' 筆）');
+    badge($('req-scope-badge'), S.allMonths ? '範圍：全部月份' : '範圍：' + S.month + '（' + S.reqs.length + ' 筆）');
+  } else {
+    badge($('petty-scope-badge'), '我的申請（' + S.petty.length + ' 筆）');
+    badge($('req-scope-badge'), '我的申購（' + S.reqs.length + ' 筆）');
+  }
+}
+
+/* ═══════════ Tabs ═══════════ */
+function switchTab(id){
+  if (!S.isAdmin && ['accounting','stats','people'].includes(id)) id = 'petty';
+  S.tab = id;
+  document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden-view'));
+  $('tab-'+id).classList.remove('hidden-view');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('border-indigo-600','text-indigo-600');
+    b.classList.add('border-transparent','text-gray-500');
+  });
+  const btn = $('tab-btn-'+id);
+  if (btn) { btn.classList.remove('border-transparent','text-gray-500'); btn.classList.add('border-indigo-600','text-indigo-600'); }
+  if (id === 'stats') loadStats();
+  if (id === 'people') loadPeople();
+}
+
+function closeModal(id){ const m=$(id); m.classList.add('hidden-view'); m.classList.remove('flex'); }
+function openModal(id){ const m=$(id); m.classList.remove('hidden-view'); m.classList.add('flex'); }
+
+/* ═══════════ 零用金表格 ═══════════ */
+function renderPetty(){
+  const kw = $('petty-search').value.trim().toLowerCase();
+  const st = $('petty-status').value;
+  const ro = !!S.year;   // 年度明細檔為唯讀
+  const rows = S.petty.filter(p => {
+    const okS = st ? p.status === st : true;
+    const okK = !kw || [p.applicant_name, p.activity, p.remark, ...(p.items||[])].join(' ').toLowerCase().includes(kw);
+    return okS && okK;
+  });
+  const tb = $('petty-body');
+  tb.innerHTML = rows.length ? '' : '<tr><td colspan="8" class="px-4 py-10 text-center text-gray-400">沒有符合的申請紀錄</td></tr>';
+  rows.forEach(p => {
+    let badge = 'bg-amber-50 text-amber-700 border-amber-200';
+    if (p.status==='已撥款') badge='bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (p.status==='已退回') badge='bg-rose-50 text-rose-700 border-rose-200';
+    const tr = document.createElement('tr');
+    tr.className='hover:bg-gray-50 transition';
+    tr.innerHTML = `
+      <td class="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">${esc(p.date)}</td>
+      <td class="px-4 py-3 font-medium text-gray-900">${esc(p.applicant_name)}</td>
+      <td class="px-4 py-3 text-gray-700">${esc(p.activity)}</td>
+      <td class="px-4 py-3">${(p.items||[]).map(i=>`<span class="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-md mr-1 mb-1">${esc(i)}</span>`).join('')}</td>
+      <td class="px-4 py-3 text-right font-semibold text-indigo-600">${money(p.amount)}</td>
+      ${S.isAdmin?`<td class="px-4 py-3 text-center"><span class="px-2.5 py-1 text-xs font-medium rounded-full border ${badge}">${esc(p.status)}</span></td>`:''}
+      <td class="px-4 py-3 text-gray-500 text-xs">${esc(p.remark)||'-'}</td>
+      <td class="px-4 py-3 text-center whitespace-nowrap">
+        ${ro ? '<span class="text-xs text-gray-300">唯讀</span>' : `
+        <button onclick="openPettyModal(${p.id})" class="text-indigo-600 hover:text-indigo-800 p-1" title="編輯"><i class="fa-solid fa-pen-to-square"></i></button>
+        <button onclick="delPetty(${p.id})" class="text-rose-500 hover:text-rose-700 p-1 ml-2" title="刪除"><i class="fa-solid fa-trash"></i></button>`}
+      </td>`;
+    tb.appendChild(tr);
+  });
+}
+
+/* 支付方式選單：清單由後端提供；若舊資料有已停用選項仍保留顯示 */
+function payMethods(current){
+  const list = (S.payMethods && S.payMethods.length) ? S.payMethods.slice() : ['現金','銀行轉帳'];
+  if (current && !list.includes(current)) list.unshift(current);
+  return list;
+}
+
+/* ═══════════ 會計端表格 ═══════════ */
+function renderAccounting(){
+  const tb = $('acc-body');
+  if (!S.petty.length) { tb.innerHTML='<tr><td colspan="9" class="px-4 py-10 text-center text-gray-400">所選範圍內無申請單</td></tr>'; return; }
+  const ro = !!S.year;   // 年度明細檔唯讀
+  tb.innerHTML='';
+  S.petty.forEach(p => {
+    const tr=document.createElement('tr'); tr.className='hover:bg-gray-50 transition';
+    tr.innerHTML=`
+      <td class="px-4 py-3"><div class="font-medium text-gray-900">${esc(p.applicant_name)}</div><div class="text-xs text-gray-500">${esc(p.date)}</div></td>
+      <td class="px-4 py-3"><div class="text-xs font-medium text-gray-900">${esc(p.activity)}</div>
+        <div class="mt-1">${(p.items||[]).map(i=>`<span class="inline-block bg-gray-100 text-gray-700 text-xs px-1.5 py-0.5 rounded mr-1">${esc(i)}</span>`).join('')}</div></td>
+      <td class="px-4 py-3 font-semibold text-gray-700">${money(p.amount)}</td>
+      ${ro ? `
+      <td class="px-4 py-3 text-xs text-gray-600">${esc(p.invoice_date||'—')}</td>
+      <td class="px-4 py-3 text-xs font-semibold text-indigo-600">${money(p.confirmed_amount)}</td>
+      <td class="px-4 py-3 text-xs text-gray-600">${esc(p.payment_date||'—')}</td>
+      <td class="px-4 py-3 text-xs text-gray-600">${esc(p.payment_method||'—')}</td>
+      <td class="px-4 py-3 text-center"><span class="px-2.5 py-1 text-xs font-medium rounded-full border ${statusCls(p.status)}">${esc(p.status)}</span></td>
+      <td class="px-4 py-3 text-center"><span class="text-xs text-gray-300">唯讀</span></td>` : `
+      <td class="px-4 py-3"><input type="date" value="${esc(p.invoice_date||'')}" onchange="accSet(${p.id},'invoice_date',this.value)" class="px-2 py-1 border border-gray-300 rounded text-xs w-32"></td>
+      <td class="px-4 py-3"><input type="number" value="${p.confirmed_amount}" onchange="accSet(${p.id},'confirmed_amount',this.value)" class="px-2 py-1 border border-gray-300 rounded text-xs w-28 font-semibold text-indigo-600"></td>
+      <td class="px-4 py-3"><input type="date" value="${esc(p.payment_date||'')}" onchange="accSet(${p.id},'payment_date',this.value)" class="px-2 py-1 border border-gray-300 rounded text-xs w-32"></td>
+      <td class="px-4 py-3"><select onchange="accSet(${p.id},'payment_method',this.value)" class="px-2 py-1 border border-gray-300 rounded text-xs bg-white">
+        ${payMethods(p.payment_method).map(o=>`<option ${p.payment_method===o?'selected':''}>${esc(o)}</option>`).join('')}</select></td>
+      <td class="px-4 py-3 text-center"><select onchange="accStatus(${p.id},this.value)" class="px-2 py-1 border rounded text-xs font-medium ${statusCls(p.status)}">
+        ${['待審核','已撥款','已退回'].map(o=>`<option ${p.status===o?'selected':''}>${o}</option>`).join('')}</select></td>
+      <td class="px-4 py-3 text-center"><button onclick="accSave(${p.id})" class="px-2.5 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700"><i class="fa-solid fa-check mr-1"></i>儲存</button></td>`}`;
+    tb.appendChild(tr);
+  });
+}
+function statusCls(s){
+  if (s === '已撥款') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (s === '已退回') return 'bg-rose-50 text-rose-700 border-rose-200';
+  return 'bg-amber-50 text-amber-700 border-amber-200';
+}
+
+/* 狀態改變 → 立即自動儲存（只送 status，不影響其他尚未儲存的欄位） */
+async function accStatus(id, val){
+  const p = S.petty.find(x => x.id === id); if (!p) return;
+  const prev = p.status;
+  if (prev === val) return;
+  p.status = val;
+  try{
+    await api('/petty/'+id+'/accounting', { method:'PUT', body: JSON.stringify({ status: val }) });
+    toast('狀態已自動儲存：' + val);
+    loadOverview();
+  }catch(e){
+    p.status = prev;
+    toast(e.message, 'error');
+  }
+}
+
+function accSet(id,f,v){ const p=S.petty.find(x=>x.id===id); if(p) p[f]=v; }
+async function accSave(id){
+  const p = S.petty.find(x=>x.id===id); if(!p) return;
+  try{
+    await api('/petty/'+id+'/accounting',{method:'PUT',body:JSON.stringify({
+      invoice_date:p.invoice_date, confirmed_amount:Number(p.confirmed_amount),
+      payment_date:p.payment_date, payment_method:p.payment_method, status:p.status })});
+    toast('會計審核資料已更新'); loadOverview();
+  }catch(e){ toast(e.message,'error'); }
+}
+
+/* ═══════════ 申購單表格 ═══════════ */
+function renderReq(){
+  const kw=$('req-search').value.trim().toLowerCase();
+  const ro = !!S.year;
+  const rows=S.reqs.filter(r => !kw || [r.requester_name,r.item_name,r.other].join(' ').toLowerCase().includes(kw));
+  const tb=$('req-body');
+  tb.innerHTML = rows.length?'':'<tr><td colspan="10" class="px-4 py-10 text-center text-gray-400">沒有符合的申購紀錄</td></tr>';
+  rows.forEach(r=>{
+    const tr=document.createElement('tr'); tr.className='hover:bg-gray-50 transition';
+    tr.innerHTML=`
+      <td class="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">${esc(r.date)}</td>
+      <td class="px-4 py-3 font-medium text-gray-900">${esc(r.requester_name)}</td>
+      <td class="px-4 py-3 font-medium text-indigo-900">${esc(r.item_name)}</td>
+      <td class="px-4 py-3 text-center">${r.qty}</td>
+      <td class="px-4 py-3 text-right font-semibold text-gray-800">${money(r.total_price)}</td>
+      <td class="px-4 py-3 text-center bg-indigo-50/20">
+        ${ro ? (r.approved_by_wang?'<i class="fa-solid fa-check text-indigo-500"></i>':'<span class="text-gray-300">—</span>')
+              : (S.isAdmin
+          ? `<input type="checkbox" ${r.approved_by_wang?'checked':''} onchange="reqSet(${r.id},'approved_by_wang',this.checked,true)" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">`
+          : (r.approved_by_wang?'<i class="fa-solid fa-check text-indigo-500"></i>':'<span class="text-gray-300">—</span>'))}
+      </td>
+      <td class="px-4 py-3 text-center bg-emerald-50/20">
+        ${ro ? (r.is_ordered?'<i class="fa-solid fa-check text-emerald-500"></i>':'<span class="text-gray-300">—</span>')
+              : `<input type="checkbox" ${r.is_ordered?'checked':''} onchange="reqSet(${r.id},'is_ordered',this.checked,false)" class="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer">`}
+      </td>
+      <td class="px-4 py-3">${ro ? `<span class="text-xs text-gray-600">${esc(r.completion_date||'—')}</span>`
+        : `<input type="date" value="${esc(r.completion_date||'')}" onchange="reqDate(${r.id},this.value)" class="px-2 py-1 border border-gray-300 rounded text-xs w-32">`}</td>
+      <td class="px-4 py-3 text-gray-500 text-xs">${esc(r.other)||'-'}</td>
+      <td class="px-4 py-3 text-center whitespace-nowrap">
+        ${ro ? '<span class="text-xs text-gray-300">唯讀</span>' : `
+        <button onclick="openReqModal(${r.id})" class="text-indigo-600 hover:text-indigo-800 p-1"><i class="fa-solid fa-pen-to-square"></i></button>
+        <button onclick="delReq(${r.id})" class="text-rose-500 hover:text-rose-700 p-1 ml-2"><i class="fa-solid fa-trash"></i></button>`}
+      </td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function reqPayload(r){ return { date:r.date, item_name:r.item_name, qty:r.qty, total_price:r.total_price, other:r.other,
+  approved_by_wang:r.approved_by_wang, is_ordered:r.is_ordered, completion_date:r.completion_date }; }
+
+async function reqSet(id,field,val,isApprove){
+  const r = S.reqs.find(x=>x.id===id); if(!r) return;
+  r[field]=val;
+  if (field==='is_ordered' && val && !r.completion_date) r.completion_date = new Date().toISOString().slice(0,10);
+  try{
+    const body = reqPayload(r);
+    if (!S.isAdmin && isApprove) { /* 後端仍會擋 */ }
+    await api('/requisitions/'+id,{method:'PUT',body:JSON.stringify(body)});
+    renderReq(); loadOverview();
+    toast(isApprove ? '已更新核准狀態' : '申購狀態已更新');
+  }catch(e){ toast(e.message,'error'); loadAll(); }
+}
+async function reqDate(id,v){ const r=S.reqs.find(x=>x.id===id); if(!r) return; r.completion_date=v;
+  try{ await api('/requisitions/'+id,{method:'PUT',body:JSON.stringify(reqPayload(r))}); toast('完成日期已更新'); }
+  catch(e){ toast(e.message,'error'); } }
+
+/* ═══════════ 零用金 Modal ═══════════ */
+function openPettyModal(id=null){
+  $('petty-modal-title').textContent = id ? '編輯零用金申請' : '新增零用金申請';
+  $('p-id').value = id || '';
+  $('p-date').value = new Date().toISOString().slice(0,10);
+  $('p-activity').value=''; $('p-amount').value=''; $('p-remark').value='';
+  $('p-applicant').value = S.me.display_name;
+
+  const box=$('p-cats'); box.innerHTML='';
+  S.cats.forEach(c=>{
+    const l=document.createElement('label');
+    l.className='inline-flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer';
+    l.innerHTML=`<input type="checkbox" name="p-cat" value="${esc(c.name)}" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"> <span>${esc(c.name)}</span>`;
+    box.appendChild(l);
+  });
+
+  if (id){
+    const p=S.petty.find(x=>x.id===id); if(!p) return;
+    $('p-date').value=p.date; $('p-activity').value=p.activity;
+    $('p-amount').value=p.amount; $('p-remark').value=p.remark||'';
+    $('p-applicant').value=p.applicant_name;
+    document.querySelectorAll('input[name="p-cat"]').forEach(c=>{ if((p.items||[]).includes(c.value)) c.checked=true; });
+  }
+  openModal('m-petty');
+}
+
+async function savePetty(e){
+  e.preventDefault();
+  const id=$('p-id').value;
+  const items=[...document.querySelectorAll('input[name="p-cat"]:checked')].map(c=>c.value);
+  if(!items.length){ toast('請至少勾選一項申請項目','error'); return; }
+  const body={ date:$('p-date').value, activity:$('p-activity').value,
+    amount:Number($('p-amount').value||0), remark:$('p-remark').value, items };
+  try{
+    if(id) await api('/petty/'+id,{method:'PUT',body:JSON.stringify(body)});
+    else await api('/petty',{method:'POST',body:JSON.stringify(body)});
+    closeModal('m-petty'); await loadAll(); toast(id?'申請已更新':'申請已建立');
+  }catch(ex){ toast(ex.message,'error'); }
+}
+async function delPetty(id){
+  if(!confirm('確定要刪除這筆零用金申請單嗎？此操作無法復原。')) return;
+  try{ await api('/petty/'+id,{method:'DELETE'}); await loadAll(); toast('已刪除'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+/* ═══════════ 申購單 Modal ═══════════ */
+function openReqModal(id=null){
+  $('req-modal-title').textContent = id ? '編輯申購單' : '新增申購單';
+  $('r-id').value = id || '';
+  $('r-date').value = new Date().toISOString().slice(0,10);
+  $('r-item').value=''; $('r-qty').value=1; $('r-total').value=''; $('r-other').value='';
+  $('r-requester').value = S.me.display_name;
+  if(id){
+    const r=S.reqs.find(x=>x.id===id); if(!r) return;
+    $('r-date').value=r.date; $('r-requester').value=r.requester_name;
+    $('r-item').value=r.item_name; $('r-qty').value=r.qty;
+    $('r-total').value=r.total_price; $('r-other').value=r.other||'';
+  }
+  openModal('m-req');
+}
+async function saveReq(e){
+  e.preventDefault();
+  const id=$('r-id').value;
+  const body={ date:$('r-date').value, item_name:$('r-item').value,
+    qty:Number($('r-qty').value||1), total_price:Number($('r-total').value||0), other:$('r-other').value };
+  try{
+    if(id) await api('/requisitions/'+id,{method:'PUT',body:JSON.stringify(body)});
+    else await api('/requisitions',{method:'POST',body:JSON.stringify(body)});
+    closeModal('m-req'); await loadAll(); toast(id?'申購單已更新':'申購單已建立');
+  }catch(ex){ toast(ex.message,'error'); }
+}
+async function delReq(id){
+  if(!confirm('確定要刪除這筆申購單嗎？此操作無法復原。')) return;
+  try{ await api('/requisitions/'+id,{method:'DELETE'}); await loadAll(); toast('已刪除'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+/* ═══════════ 類別管理 ═══════════ */
+function openCategoryModal(){ openModal('m-cat'); renderCatList(); }
+function renderCatList(){
+  const box=$('cat-list'); box.innerHTML='';
+  S.cats.forEach(c=>{
+    const d=document.createElement('div');
+    d.className='flex items-center justify-between bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200 text-sm';
+    d.innerHTML=`<span class="font-medium text-gray-800">${esc(c.name)}</span>
+      <button onclick="delCategory(${c.id})" class="text-rose-500 hover:text-rose-700 text-xs"><i class="fa-solid fa-trash"></i> 刪除</button>`;
+    box.appendChild(d);
+  });
+}
+async function addCategory(){
+  const v=$('new-cat').value.trim(); if(!v) return;
+  try{ await api('/categories',{method:'POST',body:JSON.stringify({name:v})});
+    $('new-cat').value=''; await loadAll(); renderCatList(); toast('已新增'); }
+  catch(e){ toast(e.message,'error'); }
+}
+async function delCategory(id){
+  if(!confirm('確定要刪除此申請項目嗎？')) return;
+  try{ await api('/categories/'+id,{method:'DELETE'}); await loadAll(); renderCatList(); toast('已刪除'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+/* ═══════════ 人員管理 ═══════════ */
+async function loadPeople(){
+  try{
+    S.people = await api('/people');
+    $('people-count').textContent = `共 ${S.people.length} 人`;
+    const tb=$('people-body');
+    tb.innerHTML = S.people.length?'':'<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">尚無人員</td></tr>';
+    S.people.forEach(p=>{
+      const tr=document.createElement('tr'); tr.className='hover:bg-gray-50';
+      const isSelf = p.username === S.me.username;
+      const isDefaultAdmin = p.username === 'admin';
+      tr.innerHTML=`
+        <td class="px-4 py-3 font-medium text-gray-900">${esc(p.display_name)}${isSelf?' <span class="text-xs text-gray-400">(我)</span>':''}
+            <div class="text-xs text-gray-400 font-mono">${esc(p.username)}</div></td>
+        <td class="px-4 py-3 text-center">
+          <select onchange="updPerson(${p.id},this.value)" ${isSelf?'disabled':''}
+            class="px-2 py-1 border rounded text-xs font-medium ${p.role==='admin'?'bg-purple-50 text-purple-700 border-purple-200':'bg-gray-50 text-gray-700 border-gray-200'}">
+            <option value="user" ${p.role==='user'?'selected':''}>user</option>
+            <option value="admin" ${p.role==='admin'?'selected':''}>admin</option>
+          </select></td>
+        <td class="px-4 py-3 text-right">${p.petty_count} 筆<div class="text-xs text-gray-400">${money(p.petty_total)}</div></td>
+        <td class="px-4 py-3 text-right">${p.req_count} 筆<div class="text-xs text-gray-400">${money(p.req_total)}</div></td>
+        <td class="px-4 py-3 text-xs text-gray-500">${esc((p.last_login_at||'').replace('T',' ').slice(0,16)||'—')}</td>
+        <td class="px-4 py-3 text-center">
+          ${isSelf? '<span class="text-xs text-gray-300">—</span>'
+            : (isDefaultAdmin
+              ? '<span class="text-[11px] text-purple-500 bg-purple-50 px-2 py-1 rounded" title="預設管理員，不可刪除">🔒 預設</span>'
+              : `<button onclick="setPersonPw(${p.id},'${esc(p.display_name).replace(/'/g,"\\'")}')" class="text-indigo-600 hover:text-indigo-800 p-1 mr-2" title="設定/更換密碼"><i class="fa-solid fa-key"></i></button>
+               <button onclick="delPerson(${p.id},'${esc(p.display_name).replace(/'/g,"\\'")}')" class="text-rose-500 hover:text-rose-700 p-1"><i class="fa-solid fa-user-slash"></i></button>`)}
+        </td>`;
+      tb.appendChild(tr);
+    });
+  }catch(e){ toast(e.message,'error'); }
+}
+async function createPerson(){
+  const name=$('p-name').value.trim(), role=$('p-role').value;
+  const pw = $('p-pw').value.trim();
+  if(!name){ toast('請輸入姓名','error'); return; }
+  const body = { username:name, role };
+  if(role==='admin' && pw) body.password = pw;
+  try{
+    const r = await api('/people',{method:'POST',body:JSON.stringify(body)});
+    $('p-name').value=''; $('p-pw').value='';
+    await loadPeople(); loadAdminLog();
+    toast(r.message || '已新增人員');
+  }catch(e){ toast(e.message,'error'); }
+}
+
+/* 設定/更換某位管理員的密碼 */
+async function setPersonPw(id, name){
+  const pw = prompt(`請輸入「${name}」的管理員密碼（至少 4 碼）：`);
+  if(pw===null) return;
+  if(pw.length < 4){ toast('密碼至少 4 碼','error'); return; }
+  try{ await api('/people/'+id,{method:'PUT',body:JSON.stringify({password:pw})});
+    await loadPeople(); loadAdminLog(); toast('密碼已更新'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+/* 管理員修改自己的密碼 */
+async function changeMyPw(){
+  const oldPw = prompt('請輸入目前密碼：');
+  if(oldPw===null) return;
+  const newPw = prompt('請輸入新密碼（至少 4 碼）：');
+  if(newPw===null) return;
+  if(newPw.length < 4){ toast('新密碼至少 4 碼','error'); return; }
+  try{ await api('/me/password',{method:'POST',body:JSON.stringify({old_password:oldPw,new_password:newPw})});
+    toast('密碼已更新，請重新登入');
+    setTimeout(()=>{ forceEntry(); $('in-name').value=''; }, 1200); }
+  catch(e){ toast(e.message,'error'); }
+}
+async function updPerson(id,role){
+  if(!confirm(`確定要將此人員的權限改為「${role}」嗎？`)) { loadPeople(); return; }
+  try{ await api('/people/'+id,{method:'PUT',body:JSON.stringify({role})});
+    await loadPeople(); loadAdminLog(); toast('權限已更新'); }
+  catch(e){ toast(e.message,'error'); loadPeople(); }
+}
+async function delPerson(id,name){
+  if(!confirm(`確定要停用「${name}」嗎？\n其歷史單據將保留，但該帳號無法再進入系統。`)) return;
+  try{ await api('/people/'+id,{method:'DELETE'}); await loadPeople(); loadAdminLog(); toast('已停用'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+/* ═══════════ 統計圖表（純 CSS 長條）═══════════ */
+function barChart(el, rows, {labelKey='name', valKey='cnt', showAmt=true, color='indigo', empty='無資料'}={}) {
+  const box = $(el);
+  if (!rows || !rows.length) { box.innerHTML = `<p class="text-sm text-gray-400 text-center py-8">${empty}</p>`; return; }
+  const max = Math.max(...rows.map(r => Number(r[valKey])||0)) || 1;
+  const palette = { indigo:['bg-indigo-500','bg-indigo-100'], emerald:['bg-emerald-500','bg-emerald-100'], blue:['bg-blue-500','bg-blue-100'] };
+  const [bar, track] = palette[color] || palette.indigo;
+  box.innerHTML = rows.map(r => {
+    const v = Number(r[valKey])||0;
+    const pct = Math.max(2, Math.round(v/max*100));
+    return `<div>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="font-medium text-gray-700 truncate pr-2">${esc(r[labelKey])}</span>
+        <span class="text-gray-500 whitespace-nowrap">${v.toLocaleString()} 件${showAmt?` · ${money(r.amount)}`:''}</span>
+      </div>
+      <div class="h-2.5 ${track} rounded-full overflow-hidden">
+        <div class="h-full ${bar} rounded-full transition-all" style="width:${pct}%"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadStats(){
+  if (!S.isAdmin) return;
+  const q = S.year ? '?year=' + S.year : (S.allMonths ? '' : '?month=' + S.month);
+  const label = S.year ? S.year + ' 年度' : (S.allMonths ? '全部月份' : S.month);
+  $('stat-cat-month').textContent = '範圍：' + label;
+  $('stat-person-month').textContent = '範圍：' + label;
+  if (S.year) {   // 年度模式：統計圖表沿用即時統計（年度檔為唯讀）
+    $('chart-category').innerHTML = '<p class="text-xs text-gray-400 text-center py-4">年度明細檔為唯讀檢索，統計圖表請切回即時資料</p>';
+    $('chart-person').innerHTML = '<p class="text-xs text-gray-400 text-center py-4">年度明細檔為唯讀檢索，統計圖表請切回即時資料</p>';
+    $('chart-trend').innerHTML = '';
+    return;
+  }
+  try{
+    const [cat, per, trend] = await Promise.all([
+      api('/stats/by-category'+q),
+      api('/stats/by-person'+q+'&kind='+$('person-kind').value),
+      api('/stats/monthly-trend'),
+    ]);
+    barChart('chart-category', cat.rows, { color:'indigo' });
+    barChart('chart-person', per.rows, { color:'emerald' });
+    barChart('chart-trend', trend.rows.map(r=>({...r, name:r.month})), { valKey:'cnt', color:'blue' });
+  }catch(e){ toast(e.message,'error'); }
+}
+
+/* ═══════════ 匯出 / 備份 ═══════════ */
+function openBackupModal(){ openModal('m-backup'); loadBackupModal(); }
+
+async function doExport(kind){
+  if(!S.isAdmin){ toast('匯出報表僅限管理員','error'); return; }
+  const q = S.allMonths ? '' : '?month=' + S.month;
+  try{
+    const res = await api('/export/'+kind+q);
+    const blob = await res.blob();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`${kind}_${S.allMonths?'all':S.month}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('CSV 匯出成功');
+  }catch(e){ toast(e.message,'error'); }
+}
+
+async function doBackupNow(){
+  try{
+    const d = await api('/backup/run', { method:'POST' });
+    await loadBackupModal();
+    toast(`備份完成：零用金 ${d.petty} 筆、申購單 ${d.req} 筆`);
+  }catch(e){ toast(e.message, 'error'); }
+}
+
+async function doAutoNow(){
+  try{
+    const d = await api('/backup/auto-now', { method:'POST' });
+    await loadBackupModal();
+    await loadArchiveYears();
+    toast('已執行備份 + 年度封存');
+  }catch(e){ toast(e.message, 'error'); }
+}
+
+async function doArchive(){
+  const y = $('archive-year-input').value.trim();
+  if(!y){ toast('請輸入要封存的年度','error'); return; }
+  if(!confirm(`確定要封存 ${y} 年度的資料嗎？\n封存後可從「歷史年度」下拉選單查詢。`)) return;
+  try{
+    const d = await api('/archive/'+y, { method:'POST' });
+    $('archive-year-input').value = '';
+    await loadArchiveYears();
+    await loadBackupModal();
+    toast(`已封存 ${d.year}：零用金 ${d.petty} 筆、申購單 ${d.requisitions} 筆`);
+  }catch(e){ toast(e.message, 'error'); }
+}
+
+async function loadBackupModal(){
+  if(!S.isAdmin) return;
+  // 年度清單
+  const al = $('archive-list');
+  try{
+    const rows = await api('/archive/years');
+    al.innerHTML = rows.length ? rows.map(y => `
+      <div class="flex items-center justify-between px-3 py-2 border border-gray-200 rounded-lg bg-purple-50/40">
+        <span class="text-sm"><b>${y.year} 年</b>
+          <span class="text-xs text-gray-500 ml-2">零用金 ${y.petty_count} · 申購 ${y.req_count}</span></span>
+        <button onclick="switchYear('${y.year}')" class="px-2 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700">查詢</button>
+      </div>`).join('')
+      : '<p class="text-xs text-gray-400 text-center py-3">尚未封存任何年度</p>';
+  }catch(e){ al.innerHTML = ''; }
+
+  // 備份紀錄
+  const bl = $('backup-log');
+  try{
+    const rows = await api('/backup/log');
+    bl.innerHTML = rows.length ? `<table class="min-w-full divide-y divide-gray-200 text-left">
+      <thead class="bg-gray-50 text-gray-600 sticky top-0"><tr>
+        <th class="px-2 py-1.5">時間</th><th class="px-2 py-1.5">類型</th>
+        <th class="px-2 py-1.5">觸發</th><th class="px-2 py-1.5 text-right">筆數</th></tr></thead>
+      <tbody class="divide-y divide-gray-200">${rows.map(b=>`<tr>
+        <td class="px-2 py-1.5 whitespace-nowrap">${esc(b.created_at||'')}</td>
+        <td class="px-2 py-1.5">${b.kind==='year-archive'?'年度封存':'每月備份'}</td>
+        <td class="px-2 py-1.5 text-gray-500">${esc(b.note||'')}</td>
+        <td class="px-2 py-1.5 text-right">${b.petty_count}/${b.req_count}</td></tr>`).join('')}
+      </tbody></table>` : '<p class="text-gray-400 text-center py-3 text-xs">尚無紀錄</p>';
+  }catch(e){ bl.innerHTML=''; }
+
+  // 檔案
+  const bf = $('backup-files');
+  try{
+    const rows = await api('/archive/files');
+    bf.innerHTML = rows.length ? rows.map(f=>`<div class="flex items-center justify-between px-2 py-1.5 border-b border-gray-100 last:border-0">
+        <span class="truncate pr-2">${esc(f.name)}</span>
+        <span class="text-gray-400 whitespace-nowrap">${(f.size/1024).toFixed(1)} KB</span></div>`).join('')
+      : '<p class="text-gray-400 text-center py-3 text-xs">尚無備份檔</p>';
+  }catch(e){ bf.innerHTML=''; }
+}
+
+async function downloadBackup(){
+  try{
+    const d = await api('/backup');
+    const blob = new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`ReqKit_Backup_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('備份檔已下載');
+  }catch(e){ toast(e.message,'error'); }
+}
+async function importBackup(){
+  const txt=$('import-json').value.trim();
+  if(!txt){ toast('請先貼上 JSON 內容','error'); return; }
+  if(!confirm('確定要還原嗎？現有資料將被覆蓋。')) return;
+  try{ await api('/backup',{method:'POST',body:txt});
+    $('import-json').value=''; closeModal('m-backup'); await loadAll(); toast('資料已還原'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+/* ═══════════ Toast ═══════════ */
+function toast(msg, type='success'){
+  const t=document.createElement('div');
+  t.className=`fixed bottom-5 right-5 z-[60] ${type==='error'?'bg-rose-600':'bg-gray-900'} text-white px-4 py-2.5 rounded-xl shadow-lg text-sm flex items-center gap-2 fade-in`;
+  t.innerHTML=`<i class="fa-solid ${type==='error'?'fa-circle-exclamation text-rose-300':'fa-circle-check text-emerald-400'}"></i><span>${esc(msg)}</span>`;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),3200);
+}
+
+/* ═══════════ 啟動 ═══════════ */
+(async function init(){
+  $('month-label').textContent = S.month;
+  updateStatMonths();
+  if (S.token){
+    try{
+      const d = await api('/me');
+      S.me = d.user; S.isAdmin = d.is_admin;
+      if (d.payment_methods) S.payMethods = d.payment_methods;
+      await enterApp(); return;
+    }catch(e){ forceEntry(); }
+  }
+  showEntry();
+})();
+</script>
+</body>
+</html>

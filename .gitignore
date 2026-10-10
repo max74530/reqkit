@@ -1,0 +1,52 @@
+# ── 環境變數（可能含機密，絕不提交）──
+.env
+.env.*
+!.env.example
+
+# ── 執行時資料（資料庫、備份、簽章金鑰）──
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+mnt/
+db_ssd/
+*.sqlite
+*.sqlite3
+
+# ── 年度封存與備份檔 ──
+archive/
+*.tar.gz
+ReqKit_*.json
+reqkit_*.db
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+.Python
+pip-log.txt
+
+# ── 編輯器 ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── 作業系統 ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── 憑證檔（保險起見）──
+*credential*
+*secret*
+*password*
+*ACCOUNTS*
+*.pem
+*.key
